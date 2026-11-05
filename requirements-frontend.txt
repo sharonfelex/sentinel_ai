@@ -1,0 +1,7 @@
+# Streamlit dashboard and API client (see src/frontend/README.md)
+streamlit>=1.40
+httpx>=0.27
+pydantic>=2.7
+
+# Tests
+pytest>=8
