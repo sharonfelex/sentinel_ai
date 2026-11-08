@@ -1,81 +1,56 @@
-# Sentinel AI — Frontend API client
+# Sentinel AI — Streamlit frontend
 
-The Streamlit dashboard talks to the FastAPI backend only through this package.
-The API contract it implements is `docs/architecture/api-contract.md` (v0.1).
+The Streamlit dashboard consumes the FastAPI backend through the frontend API client and typed contract models.
+
+## Components
 
 | File | Purpose |
 |---|---|
-| `api_contract.py` | Pydantic models for every API response, plus the shared severity, confidence-band and label-mapping rules |
-| `api_client.py` | `SentinelApiClient` (live HTTP client), error types and `get_client()` |
-| `mock_api.py` | `MockSentinelApi`, an offline mock with the same interface. Its output is always marked `is_mock=True`. |
+| dashboard.py | Streamlit security dashboard: connection status, model info, upload, summary, alerts and row-level results |
+| api_contract.py | Pydantic models and shared severity/confidence/label rules |
+| api_client.py | Live FastAPI HTTP client and typed error handling |
+| mock_api.py | Offline contract-compatible mock; every detection is marked is_mock=True |
 
-## Setup
+## Run the live dashboard
 
 From the repository root:
 
 ```bash
 pip install -r requirements-frontend.txt
+uvicorn src.backend.main:app --reload --port 8000
+python -m streamlit run src/frontend/dashboard.py
 ```
+
+The default backend URL is http://localhost:8000.
+
+## Mock/offline mode
+
+PowerShell:
+
+```powershell
+$env:SENTINEL_API_MODE = "mock"
+python -m streamlit run src/frontend/dashboard.py
+```
+
+Mock predictions are synthetic and must never be presented as real detections.
 
 ## Configuration
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SENTINEL_API_URL` | `http://localhost:8000` | Backend base URL |
-| `SENTINEL_API_MODE` | `live` | `live` calls the backend; `mock` uses offline demo data |
+| SENTINEL_API_URL | http://localhost:8000 | FastAPI base URL |
+| SENTINEL_API_MODE | live | live calls FastAPI; mock uses the offline demo |
 
-## Run
+## UI behavior
 
-Start the backend (Sharan's `feature/backend-api`):
+The dashboard keeps these concepts separate:
+- Prediction: one of the six supervised MVP classes.
+- Confidence: model certainty, shown as a percentage and confidence band.
+- Severity: contract-defined risk level, independent of confidence.
+- Anomaly: a separate anomaly signal; it is not a seventh attack class.
+- Mock mode: explicitly labelled so synthetic results cannot be mistaken for live detections.
 
-```bash
-uvicorn src.backend.main:app --reload --port 8000
-```
-
-Start the dashboard. Use `python -m` so the repository root is on the import path:
-
-```bash
-python -m streamlit run src/frontend/dashboard.py
-```
-
-To work on the dashboard without a backend, set `SENTINEL_API_MODE=mock` first (PowerShell: `$env:SENTINEL_API_MODE = "mock"`).
-
-## Using the client in the dashboard
-
-```python
-import streamlit as st
-from src.frontend.api_client import ApiError, ApiUnavailableError, get_client
-
-@st.cache_resource
-def api():
-    return get_client()
-
-upload = st.file_uploader("Network flow CSV", type="csv")
-if upload is not None:
-    try:
-        batch = api().detect_csv(upload.name, upload.getvalue())
-    except ApiUnavailableError:
-        st.error("The detection API is not reachable. Is the backend running?")
-    except ApiError as exc:
-        st.error(str(exc))
-    else:
-        if batch.is_mock:
-            st.warning("Mock data — not live detection")
-        st.metric("Malicious flows", batch.summary.malicious_count)
-        for alert in batch.alerts:
-            ...
-```
-
-## Error types
-
-All errors inherit from `ApiError`, so the UI can catch that one type and show `str(exc)`.
-
-| Error | When |
-|---|---|
-| `ApiUnavailableError` | Backend not running, unreachable, or timed out |
-| `ApiRequestError` | Backend rejected the request (4xx), such as an invalid CSV or an endpoint that doesn't exist yet |
-| `ApiServerError` | Backend failed (5xx) |
-| `ContractError` | Backend answered, but the response does not match the contract |
+The UI handles backend-unavailable, 4xx CSV rejection, 5xx errors and response contract mismatches without exposing raw exceptions.
 
 ## Tests
 
