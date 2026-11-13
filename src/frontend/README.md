@@ -6,10 +6,22 @@ The Streamlit dashboard consumes the FastAPI backend through the frontend API cl
 
 | File | Purpose |
 |---|---|
-| dashboard.py | Streamlit security dashboard: connection status, model info, upload, summary, alerts and row-level results |
+| dashboard.py | Multi-page Streamlit dashboard (pages below) |
+| presentation.py | Display rules and table builders (wording for confidence, severity, anomaly and mock data), unit-tested without Streamlit |
 | api_contract.py | Pydantic models and shared severity/confidence/label rules |
 | api_client.py | Live FastAPI HTTP client and typed error handling |
 | mock_api.py | Offline contract-compatible mock; every detection is marked is_mock=True |
+
+## Pages
+
+| Page | Shows |
+|---|---|
+| Overview | Benign/malicious/anomaly/skipped counts, class and severity distributions, top alerts for the latest run |
+| Network Traffic Analysis | CSV upload, **Validate CSV** (`POST /upload-csv`), **Run detection** (`POST /detect`), traffic breakdown by protocol/port/IP, filterable row-level results, row errors |
+| Threat Alerts | Classifier alerts and anomaly-only alerts in separate tabs, each with severity, model confidence, anomaly status, flow and evidence |
+| Incident History | Detection runs from this browser session, plus a **sample** incident log (`GET /incidents` is Phase 2 of the contract) |
+
+The sidebar shows backend health (`GET /health`) and model/contract details (`GET /model/info`).
 
 ## Run the live dashboard
 
@@ -43,6 +55,13 @@ Mock predictions are synthetic and must never be presented as real detections.
 
 ## UI behavior
 
+Wording follows contract sections 7, 8 and 10:
+- Confidence is shown as "Model confidence 0.72 (moderate)", never as the probability of an attack.
+- Weak-confidence attack predictions are labelled "Needs analyst review".
+- A benign row flagged by the anomaly detector is shown as "Anomaly — unconfirmed" in its own tab and colour, never as a class. `anomaly: null` is shown as "Not run".
+- Every mock result carries the "Mock data — not live detection" banner. Sample incidents are labelled as demonstration data.
+- Alerts are ordered by severity, never by confidence.
+
 The dashboard keeps these concepts separate:
 - Prediction: one of the six supervised MVP classes.
 - Confidence: model certainty, shown as a percentage and confidence band.
@@ -55,5 +74,5 @@ The UI handles backend-unavailable, 4xx CSV rejection, 5xx errors and response c
 ## Tests
 
 ```bash
-python -m pytest tests/test_api_client.py
+python -m pytest tests/test_api_client.py tests/test_presentation.py tests/test_dashboard.py
 ```
